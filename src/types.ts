@@ -190,6 +190,8 @@ export interface LibraryExportResult {
 }
 
 export type RoonMcpErrorCode =
+  | "PROFILE_SELECTION_FAILED"
+  | "PROFILE_CONTEXT_LOST"
   | "NO_CORE_PAIRED"
   | "CORE_PAIRING_HELD"
   | "ZONE_NOT_FOUND"

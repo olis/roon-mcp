@@ -18,15 +18,29 @@ import { RoonMcpError } from "./types.js";
 export class BrowseSessionManager {
   // Tail of the serialization chain; each exclusive op links onto it.
   private tail: Promise<unknown> = Promise.resolve();
+  private operationBrowse?: ReturnType<RoonClient["getBrowse"]>;
 
   constructor(
     private readonly roon: RoonClient,
     private readonly logger: RoonCallLogger = silentLogger,
+    private readonly beforeOperation?: () => Promise<void>,
   ) {}
 
   /** Run a multi-step browse sequence with exclusive access to the session. */
   runExclusive<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.tail.then(operation, operation);
+    const execute = this.beforeOperation
+      ? async () => {
+          await this.roon.waitForCore();
+          this.operationBrowse = this.roon.getBrowse();
+          try {
+            await this.beforeOperation!();
+            return await operation();
+          } finally {
+            this.operationBrowse = undefined;
+          }
+        }
+      : operation;
+    const result = this.tail.then(execute, execute);
     // Keep the chain alive regardless of this op's outcome.
     this.tail = result.then(
       () => undefined,
@@ -69,6 +83,7 @@ export class BrowseSessionManager {
   async browse(options: BrowseOptions): Promise<BrowseResultBody> {
     await this.roon.waitForCore();
     const browse = this.roon.getBrowse();
+    this.checkOperationConnection(browse);
     return this.logger.call(
       "browse",
       options,
@@ -95,6 +110,7 @@ export class BrowseSessionManager {
   async load(options: LoadOptions): Promise<LoadResultBody> {
     await this.roon.waitForCore();
     const browse = this.roon.getBrowse();
+    this.checkOperationConnection(browse);
     return this.logger.call(
       "load",
       options,
@@ -110,6 +126,14 @@ export class BrowseSessionManager {
         }),
       (body) => ({ items: body.items.length, count: body.list?.count }),
     );
+  }
+  private checkOperationConnection(browse: ReturnType<RoonClient["getBrowse"]>): void {
+    if (this.operationBrowse && browse !== this.operationBrowse) {
+      throw new RoonMcpError(
+        "PROFILE_CONTEXT_LOST",
+        "Roon reconnected during this operation. Retry to verify the profile again.",
+      );
+    }
   }
 }
 

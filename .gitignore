@@ -1,5 +1,10 @@
 node_modules/
 dist/
+
+# Local test builds and deployment rollback copies
+/.profile-build/
+/dist.*/
+
 *.log
 .DS_Store
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { BrowseSessionManager } from "./BrowseSessionManager.js";
+import { ProfiledBrowseSessionManager } from "./ProfiledBrowseSessionManager.js";
 import { GenreService } from "./GenreService.js";
 import { LibraryExportService } from "./LibraryExportService.js";
 import { PlaybackService } from "./PlaybackService.js";
+import { ensureOliverProfile } from "./ProfileSelection.js";
 import { RoonClient } from "./RoonClient.js";
 import { RoonMcpServer } from "./RoonMcpServer.js";
 import { SearchService } from "./SearchService.js";
@@ -33,7 +34,9 @@ async function main(): Promise<void> {
   // when a playback call omits its zoneId.
   const defaultZone = process.env.ROON_DEFAULT_ZONE?.trim() || undefined;
   const zones = new ZoneService(roon, logger, defaultZone);
-  const browse = new BrowseSessionManager(roon, logger);
+  const browse: ProfiledBrowseSessionManager = new ProfiledBrowseSessionManager(
+    roon, logger, () => ensureOliverProfile(browse),
+  );
   const genres = new GenreService(browse);
   const tracks = new TrackExpansionService(browse);
   const search = new SearchService(browse, genres, tracks);

@@ -1,4 +1,5 @@
 import { RoonLibraryClient, type TrackInfo } from "roon-library-controls";
+import { changeFavorite, resolvedFavorite } from "./FavoriteControl.js";
 import { prepareRemoval } from "./LibraryRemoval.js";
 import { RoonClient } from "./RoonClient.js";
 import { TransportService } from "./TransportService.js";
@@ -52,7 +53,8 @@ export class LibraryControlService {
     return track;
   }
   private async readStatus(client:RoonLibraryClient,track:TrackInfo){
-    const result=status(track);if(!track.inLibrary)return result;
+    const favorite=await resolvedFavorite(client,track);
+    const result={...status(track),favorite,canFavorite:favorite!==null&&(track.inLibrary||track.source==="streaming")};if(!track.inLibrary)return result;
     const key=track.libraryTrackId??track.trackId??'';let capability=this.removability.get(key);
     if(!capability||Date.now()-capability.at>90000){
       try{await prepareRemoval(client,track);capability={at:Date.now(),canRemove:true};}
@@ -72,6 +74,23 @@ export class LibraryControlService {
         this.lastResync = Date.now(); this.close();
         const client=await this.connection();return this.readStatus(client,await this.current(client,zoneId));
       }
+    });
+  }
+  favorite(zoneId:string,expected:{trackId:string;title:string;album:string},favorite:boolean){
+    return this.exclusive(async()=>{
+      const client=await this.connection();let track=await this.current(client,zoneId);validateExpected(track,expected);
+      if(!track.inLibrary){
+        if(!favorite)return {...status(track),favorite:false,canFavorite:true};
+        if(track.source!=="streaming")throw Error("This recording cannot be liked.");
+        const latest=client.trackForZone(zoneId);if(!latest)throw Error("Nothing playing.");validateExpected(latest,expected);
+        track=await client.addToLibrary(zoneId,"track");
+        if(!track.inLibrary||!same(track.title,expected.title)||!same(track.album?.title,expected.album))throw Error("The song changed while adding it for liking.");
+      }
+      const target={trackId:track.trackId!,title:track.title,album:track.album?.title??''},libraryId=track.libraryTrackId;
+      await changeFavorite(client,zoneId,track,favorite,async()=>{const latest=await this.current(client,zoneId);validateExpected(latest,target);if(latest.libraryTrackId!==libraryId)throw Error("Library track changed. Nothing was liked or unliked.");});
+      this.close();const fresh=await this.connection(),confirmed=await this.current(fresh,zoneId),result=await this.readStatus(fresh,confirmed);
+      if(!same(confirmed.title,expected.title)||!same(confirmed.album?.title,expected.album)||result.favorite!==favorite)throw Error("Roon did not confirm the favourite change for this song.");
+      return result;
     });
   }
   remove(zoneId: string, expected: { trackId: string; title: string; album: string }) {

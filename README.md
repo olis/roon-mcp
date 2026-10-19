@@ -208,3 +208,6 @@ These tools use the unofficial [roon-library-controls](https://github.com/Vulkan
 
 
 `remove_current_from_library({zoneId,trackId,title,album})` removes the exact current streaming track after a read-only `PreviewDelete` verifies its library id, title and album. Only provider-removal actions for TIDAL, Qobuz or KKBOX are allowed. Local file deletion and album removal are rejected. The write contains one track preview with no album, is never retried, and is followed by a fresh membership check. Library status includes a bounded, cached read-only removal preview and exposes `canRemove` (or `removeReason`) so unsupported operations remain disabled.
+
+
+`set_current_favorite({zoneId,trackId,title,album,favorite})` sets Oliver’s current-track favourite flag. `get_library_status` also returns a resolved `favorite` boolean (or null while unavailable) and `canFavorite`. The saved library object is resolved before reading or changing hearts. The exact recording and profile are rechecked after that asynchronous lookup and before sending `FavoriteOrBan`. Liking an unsaved streaming song adds that single track first; unliking leaves membership intact. A fresh read confirms the requested favourite state. These mutations are never automatically retried.

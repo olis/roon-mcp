@@ -43,7 +43,7 @@ export class RoonMcpServer {
 
   registerTools(): void {
     this.server.registerTool("get_library_status", {
-      title: "Get current track library membership", description: "Read exact current-track library membership from the paired Core for Oliver. Uses an optional internal-protocol adapter; not Roon favourite status.",
+      title: "Get current track library membership", description: "Read exact current-track library membership and resolved favourite status from the paired Core for Oliver. Uses an optional internal-protocol adapter.",
       inputSchema: { zoneId: z.string().min(1).max(150) }, annotations: { readOnlyHint: true, destructiveHint: false },
     }, handle(({zoneId}) => this.libraryControls.status(zoneId)));
     this.server.registerTool("add_current_to_library", {
@@ -57,6 +57,11 @@ export class RoonMcpServer {
       inputSchema:{zoneId:z.string().min(1).max(150),trackId:z.string().min(1).max(150),title:z.string().min(1).max(1000),album:z.string().max(1000)},
       annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:true},
     },handle(({zoneId,...expected})=>this.libraryControls.remove(zoneId,expected)));
+    this.server.registerTool("set_current_favorite",{
+      title:"Like or unlike the current track for Oliver",description:"Sets the exact current recording's Roon favourite flag. Liking an unsaved streaming track first adds that single track to the library; unliking keeps it saved. Rejects changed tracks and confirms the result.",
+      inputSchema:{zoneId:z.string().min(1).max(150),trackId:z.string().min(1).max(150),title:z.string().min(1).max(1000),album:z.string().max(1000),favorite:z.boolean()},
+      annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true},
+    },handle(({zoneId,favorite,...expected})=>this.libraryControls.favorite(zoneId,expected,favorite)));
     const images = new ImageService(this.roon);
     this.server.registerTool("get_image", {
       title: "Get Roon cover artwork",

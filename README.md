@@ -198,3 +198,10 @@ commit, and verifies the package with `npm pack`. It then prints the push and
 ## License
 
 [MIT](LICENSE)
+
+
+### Optional library controls
+
+`get_library_status({zoneId})` reads the exact current track's library membership. `add_current_to_library({zoneId,trackId,title,album})` adds that single track only after validating the identity returned by the status tool. It never removes tracks, adds whole albums or changes Roon favourites. The adapter verifies its profile is Oliver and waits for Core confirmation before reporting success.
+
+These two tools use the unofficial [roon-library-controls](https://github.com/Vulkandr/roon-library-controls) adapter, pinned to commit `590480ced642c75623d5c943262d2f3c951604e9`. They connect lazily to the already paired Core's LAN address on TCP 9332. Roon updates may break this internal protocol. Set `ROON_LIBRARY_CONTROLS=0` to disable it. One shared session is retained, with five-minute backoff after connection failures and session recycling daily or above 20,000 graph objects. Status failures must be shown as unknown, not as an unsaved track.

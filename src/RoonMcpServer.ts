@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { isAbsolute } from "node:path";
 import { z } from "zod";
 
+import { LibraryControlService } from "./LibraryControlService.js";
 import { ImageService } from "./ImageService.js";
 import { LibraryExportService } from "./LibraryExportService.js";
 import { PlaybackService } from "./PlaybackService.js";
@@ -19,6 +20,7 @@ import pkg from "../package.json" with { type: "json" };
  */
 export class RoonMcpServer {
   private readonly server: McpServer;
+  private readonly libraryControls: LibraryControlService;
   /** MCP server version — tracks the package version (issue #6). */
   readonly version = pkg.version;
 
@@ -31,6 +33,7 @@ export class RoonMcpServer {
     private readonly transport: TransportService,
     private readonly libraryExport: LibraryExportService,
   ) {
+    this.libraryControls = new LibraryControlService(this.roon, this.transport);
     this.server = new McpServer({
       name: "roon-mcp",
       version: this.version,
@@ -39,6 +42,15 @@ export class RoonMcpServer {
   }
 
   registerTools(): void {
+    this.server.registerTool("get_library_status", {
+      title: "Get current track library membership", description: "Read exact current-track library membership from the paired Core for Oliver. Uses an optional internal-protocol adapter; not Roon favourite status.",
+      inputSchema: { zoneId: z.string().min(1).max(150) }, annotations: { readOnlyHint: true, destructiveHint: false },
+    }, handle(({zoneId}) => this.libraryControls.status(zoneId)));
+    this.server.registerTool("add_current_to_library", {
+      title: "Add the current track to the Roon library", description: "Adds only the currently loaded track for Oliver. Requires its exact trackId, title and album from get_library_status; rejects changed tracks. Does not favourite tracks, add whole albums or remove anything.",
+      inputSchema: { zoneId: z.string().min(1).max(150), trackId: z.string().min(1).max(150), title: z.string().min(1).max(1000), album: z.string().max(1000) },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    }, handle(({zoneId,...expected}) => this.libraryControls.add(zoneId, expected)));
     const images = new ImageService(this.roon);
     this.server.registerTool("get_image", {
       title: "Get Roon cover artwork",
@@ -720,6 +732,7 @@ export class RoonMcpServer {
   }
 
   async stop(): Promise<void> {
+    this.libraryControls.close();
     this.roon.stop();
     await this.server.close();
   }

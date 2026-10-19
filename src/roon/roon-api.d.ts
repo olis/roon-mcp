@@ -20,6 +20,7 @@ declare module "node-roon-api" {
     display_version: string;
     services: {
       RoonApiTransport: import("node-roon-api-transport").RoonApiTransport;
+      RoonApiImage?: import("node-roon-api-image").RoonApiImage;
       RoonApiBrowse: import("node-roon-api-browse").RoonApiBrowse;
       [service: string]: unknown;
     };
@@ -390,4 +391,12 @@ declare module "node-roon-api-transport" {
 
   const _default: typeof RoonApiTransport;
   export default _default;
+}
+
+declare module "node-roon-api-image" {
+  export interface RoonApiImage {
+    get_image(imageKey: string, options: { width: number; height: number; scale: "fit"; format: "image/jpeg" },
+      callback: (error: string | false, contentType?: string, body?: Buffer) => void): void;
+  }
+  export default class RoonApiImageService { constructor(core: unknown); }
 }

@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { isAbsolute } from "node:path";
 import { z } from "zod";
 
+import { ImageService } from "./ImageService.js";
 import { LibraryExportService } from "./LibraryExportService.js";
 import { PlaybackService } from "./PlaybackService.js";
 import { RoonClient } from "./RoonClient.js";
@@ -38,6 +39,19 @@ export class RoonMcpServer {
   }
 
   registerTools(): void {
+    const images = new ImageService(this.roon);
+    this.server.registerTool("get_image", {
+      title: "Get Roon cover artwork",
+      description: "Fetch cover artwork directly from the paired Roon Core using an imageKey returned by now_playing, get_queue or library browsing.",
+      inputSchema: { imageKey: z.string().min(1).max(512), size: z.number().int().min(64).max(1200).default(600) },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    }, async ({ imageKey, size }) => {
+      try {
+        const image = await images.getImage(imageKey, size);
+        return { content: [{ type: "image" as const, ...image }] };
+      } catch (error) { return toToolError(error); }
+    });
+
     this.server.registerTool(
       "list_zones",
       {

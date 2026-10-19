@@ -2,6 +2,7 @@ import RoonApi, { type RoonCore } from "node-roon-api";
 import RoonApiBrowse, {
   type RoonApiBrowse as RoonBrowseService,
 } from "node-roon-api-browse";
+import RoonApiImage, { type RoonApiImage as RoonImageService } from "node-roon-api-image";
 import RoonApiStatus from "node-roon-api-status";
 import RoonApiTransport, {
   type RoonApiTransport as RoonTransportService,
@@ -155,6 +156,7 @@ export class RoonClient {
 
     this.roon.init_services({
       required_services: [RoonApiTransport, RoonApiBrowse],
+      optional_services: [RoonApiImage],
       provided_services: [this.status],
     });
     this.status.set_status("Waiting for Roon Core…", false);
@@ -287,6 +289,15 @@ export class RoonClient {
       throw new RoonMcpError("NO_CORE_PAIRED", "No Roon Core is currently paired.");
     }
     return this.core.services.RoonApiTransport;
+  }
+
+  /** Image service of the paired Core, when supported. */
+  getImage(): RoonImageService {
+    if (this.lockConflict) throw this.lockConflictError();
+    if (!this.core) throw new RoonMcpError("NO_CORE_PAIRED", "No Roon Core is currently paired.");
+    const image = this.core.services.RoonApiImage;
+    if (!image) throw new Error("This Roon Core does not expose the image service.");
+    return image;
   }
 
   /** Browse service of the currently paired Core. Throws if unpaired. */

@@ -80,6 +80,7 @@ npm install -g roon-mcp
 | `play_now({ zoneId?, itemKey, shuffle?, addToQueue? })` | Play or queue one search candidate. By default replaces the queue and starts immediately. Pass `addToQueue: true` to append to the existing queue instead. `zoneId` optional (defaults as above). |
 | `enqueue_and_play({ zoneId?, itemKeys, shuffle? })` | Build an ad-hoc queue from curated item keys and start it (**replaces** the zone's queue); reports queued/skipped. |
 | `now_playing({ zoneId? })` | Snapshot of the zone's current track — state, title, artist, album, seek position. `title`/`artist`/`album` are undefined when nothing is playing. |
+| `get_image({ imageKey, size? })` | Fetch cover artwork directly from the paired Core using an `imageKey` from now-playing, queue or browse results. Returns an MCP image content block (JPEG). Size defaults to 600 pixels, bounded to 64–1200; image timeout 10 seconds, payload limit 3 MiB. Read-only. |
 | `control_playback({ zoneId?, action })` | Run a transport verb: `pause` / `resume` / `next` / `previous` / `stop` / `playpause` (toggle play/pause). |
 | `seek({ zoneId?, seconds, mode? })` | Seek within the current track. `mode:"absolute"` (default) seeks to `seconds` (0 = start); `"relative"` moves by `seconds` (negative skips backward). |
 | `set_loop({ zoneId?, mode })` | Set the loop/repeat mode: `off` / `all` / `one`. |

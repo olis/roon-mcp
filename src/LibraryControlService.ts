@@ -1,16 +1,21 @@
 import { RoonLibraryClient, type TrackInfo } from "roon-library-controls";
+import { prepareRemoval } from "./LibraryRemoval.js";
 import { RoonClient } from "./RoonClient.js";
 import { TransportService } from "./TransportService.js";
+
+class CurrentTrackMismatchError extends Error {}
 
 /** Optional internal-protocol adapter, confined to the already paired Core. */
 export class LibraryControlService {
   private client?: RoonLibraryClient;
   private identity = "";
   private connectedAt = 0;
+  private lastResync = 0;
+  private removability = new Map<string,{at:number;canRemove:boolean;removeReason?:string}>();
   private retryAfter = 0;
   private tail: Promise<unknown> = Promise.resolve();
   constructor(private readonly roon: RoonClient, private readonly transport: TransportService) {}
-  close() { const client = this.client; this.client = undefined; client?.close(); }
+  close() { const client = this.client; this.client = undefined; client?.close(); this.removability.clear(); }
   private exclusive<T>(run: () => Promise<T>): Promise<T> {
     const result = this.tail.then(run, run); this.tail = result.catch(() => {}); return result;
   }
@@ -43,11 +48,46 @@ export class LibraryControlService {
     this.checkProfile(client);
     const official = await this.transport.getNowPlaying(zoneId);
     const track = client.trackForZone(zoneId);
-    if (!track?.trackId || !same(track.title, official.title) || !same(track.album?.title, official.album)) throw new Error("Track changed or library status is unavailable. Refresh and try again.");
+    if (!track?.trackId || !same(track.title, official.title) || !same(track.album?.title, official.album)) throw new CurrentTrackMismatchError("Track changed or library status is unavailable. Refresh and try again.");
     return track;
   }
+  private async readStatus(client:RoonLibraryClient,track:TrackInfo){
+    const result=status(track);if(!track.inLibrary)return result;
+    const key=track.libraryTrackId??track.trackId??'';let capability=this.removability.get(key);
+    if(!capability||Date.now()-capability.at>90000){
+      try{await prepareRemoval(client,track);capability={at:Date.now(),canRemove:true};}
+      catch(error){capability={at:Date.now(),canRemove:false,removeReason:error instanceof Error?error.message:'Removal preview unavailable.'};}
+      if(this.removability.size>=32)this.removability.delete(this.removability.keys().next().value!);
+      this.removability.set(key,capability);
+    }
+    return {...result,canRemove:capability.canRemove,...(capability.removeReason?{removeReason:capability.removeReason}:{})};
+  }
   status(zoneId: string) {
-    return this.exclusive(async () => { const client = await this.connection(); return status(await this.current(client, zoneId)); });
+    return this.exclusive(async () => {
+      try { const client=await this.connection();return this.readStatus(client,await this.current(client,zoneId)); }
+      catch (error) {
+        // Group/zone changes can leave the internal session's graph behind.
+        // Refresh reads once, at most once a minute; never retry a mutation.
+        if (!(error instanceof CurrentTrackMismatchError) || Date.now() - this.lastResync < 60000) throw error;
+        this.lastResync = Date.now(); this.close();
+        const client=await this.connection();return this.readStatus(client,await this.current(client,zoneId));
+      }
+    });
+  }
+  remove(zoneId: string, expected: { trackId: string; title: string; album: string }) {
+    return this.exclusive(async () => {
+      const client=await this.connection(),track=await this.current(client,zoneId);validateExpected(track,expected);
+      if(!track.inLibrary)return status(track);
+      const remove=await prepareRemoval(client,track);
+      // Previewing is read-only; recheck the exact song immediately before writing.
+      const latest=await this.current(client,zoneId);validateExpected(latest,expected);
+      if(latest.libraryTrackId!==track.libraryTrackId)throw new Error("Library track changed. Nothing was removed.");
+      await remove();
+      // A fresh read confirms membership; never retry the mutation.
+      this.close();const confirmed=await this.current(await this.connection(),zoneId);
+      if(confirmed.inLibrary||!same(confirmed.title,expected.title)||!same(confirmed.album?.title,expected.album))throw new Error("Roon did not confirm removal of the expected song.");
+      return status(confirmed);
+    });
   }
   add(zoneId: string, expected: { trackId: string; title: string; album: string }) {
     return this.exclusive(async () => {
@@ -69,4 +109,4 @@ function same(a?: string, b?: string) { return (a ?? "").normalize("NFKC") === (
 export function validateExpected(track: TrackInfo, expected: { trackId: string; title: string; album: string }) {
   if (track.trackId !== expected.trackId || !same(track.title, expected.title) || !same(track.album?.title, expected.album)) throw new Error("The current song changed. Nothing was added.");
 }
-function status(track: TrackInfo) { return { zoneId: track.zoneId, trackId: track.trackId, title: track.title, album: track.album?.title ?? "", inLibrary: track.inLibrary, canAdd: !track.inLibrary && track.source === "streaming" }; }
+function status(track: TrackInfo) { return { zoneId: track.zoneId, trackId: track.trackId, title: track.title, album: track.album?.title ?? "", inLibrary: track.inLibrary, canRemove: track.inLibrary && !!track.libraryTrackId, canAdd: !track.inLibrary && track.source === "streaming" }; }

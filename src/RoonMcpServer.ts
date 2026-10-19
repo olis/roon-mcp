@@ -51,6 +51,12 @@ export class RoonMcpServer {
       inputSchema: { zoneId: z.string().min(1).max(150), trackId: z.string().min(1).max(150), title: z.string().min(1).max(1000), album: z.string().max(1000) },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     }, handle(({zoneId,...expected}) => this.libraryControls.add(zoneId, expected)));
+    this.server.registerTool("remove_current_from_library", {
+      title:"Remove the current streaming track from the Roon library",
+      description:"Removes only the exact current track after verifying Roon's removal preview. Rejects local-file deletion and album removal. Requires the latest library track identity.",
+      inputSchema:{zoneId:z.string().min(1).max(150),trackId:z.string().min(1).max(150),title:z.string().min(1).max(1000),album:z.string().max(1000)},
+      annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:true},
+    },handle(({zoneId,...expected})=>this.libraryControls.remove(zoneId,expected)));
     const images = new ImageService(this.roon);
     this.server.registerTool("get_image", {
       title: "Get Roon cover artwork",

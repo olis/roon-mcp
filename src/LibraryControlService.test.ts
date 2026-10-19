@@ -22,3 +22,10 @@ test('rejects changed track ids, recordings, source or profile before a mutation
 test('requires the Core to confirm the expected song was added',async()=>{
  const f=fixture();f.client.addToLibrary=async()=>({...await f.client.trackForZone(),inLibrary:false});await assert.rejects(f.service.add('room',f.expected));
 });
+
+test('a stale internal graph gets one bounded read-only resync',async()=>{
+ const f=fixture();f.set({title:'Old song'});let connections=0;
+ (f.service as unknown as {connection:()=>Promise<unknown>}).connection=async()=>{connections++;if(connections===2)f.set({title:'Song'});return f.client;};
+ const result=await f.service.status('room');assert.equal(result.title,'Song');assert.equal(connections,2);assert.equal(f.adds(),0);
+ f.set({title:'Old again'});await assert.rejects(f.service.status('room'));assert.equal(connections,3);
+});

@@ -42,6 +42,11 @@ export class RoonMcpServer {
   }
 
   registerTools(): void {
+    this.server.registerTool("get_release_date", {
+      title:"Get Roon original release date",
+      description:"Read original album release date and edition release date for the exact current recording through Roon's internal protocol. Dates have album scope; originalReleaseYear is null for compilations and missing original dates. Does not change playback or library data.",
+      inputSchema:{zoneId:z.string().min(1)},
+    },handle(({zoneId})=>this.libraryControls.releaseDate(zoneId)));
     this.server.registerTool("get_library_status", {
       title: "Get current track library membership", description: "Read exact current-track library membership and resolved favourite status from the paired Core for Oliver. Uses an optional internal-protocol adapter.",
       inputSchema: { zoneId: z.string().min(1).max(150) }, annotations: { readOnlyHint: true, destructiveHint: false },

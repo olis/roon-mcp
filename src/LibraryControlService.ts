@@ -1,3 +1,5 @@
+import {releaseMetadata} from './ReleaseDate.js';
+import type {ObjectGraph,RoonObject} from 'roon-library-controls/dist/src/graph.js';
 import { RoonLibraryClient, type TrackInfo } from "roon-library-controls";
 import { changeFavorite, resolvedFavorite } from "./FavoriteControl.js";
 import { prepareRemoval } from "./LibraryRemoval.js";
@@ -65,6 +67,15 @@ export class LibraryControlService {
       this.removability.set(key,capability);
     }
     return {...result,canRemove:capability.canRemove,...(capability.removeReason?{removeReason:capability.removeReason}:{})};
+  }
+  releaseDate(zoneId:string) {
+    return this.exclusive(async()=>{
+      const client=await this.connection(),track=await this.current(client,zoneId);
+      const internal=client as unknown as {graph:ObjectGraph;trackObject(zoneId:string):RoonObject|undefined};
+      const object=internal.trackObject(zoneId);
+      if(!object)throw Error('Current recording metadata unavailable.');
+      return {zoneId,trackId:track.trackId,title:track.title,album:track.album?.title??'',...releaseMetadata(internal.graph,object)};
+    });
   }
   status(zoneId: string) {
     return this.exclusive(async () => {

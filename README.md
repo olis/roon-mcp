@@ -216,3 +216,7 @@ These tools use the unofficial [roon-library-controls](https://github.com/Vulkan
 ### Native Listen Later
 
 `get_library_status` reports `listenLater` (boolean or null) and `canListenLater` for Oliver's current recording. `set_current_listen_later({zoneId,trackId,title,album,listenLater})` saves or unsaves only that exact song in Roon's native Listen Later, without library additions or playback changes. It rechecks the selected recording and Oliver profile, makes one internal-protocol write, and verifies the state using a fresh connection. Unsupported or unreadable state remains unavailable. This uses the same optional internal adapter as the existing library controls.
+
+### Original release metadata
+
+`get_release_date({zoneId})` reads the exact current track’s album metadata through the optional internal-protocol adapter. It returns `originalAlbumReleaseDate`, `albumReleaseDate`, `isCompilation`, `dateScope: "album"` and `source: "roon-internal"`, with the current track identity. Dates preserve unknown month/day as null. `originalReleaseYear` is null for compilations, various-artist albums or a missing original date; album dates must not be presented as original song dates for compilations. This read-only tool does not change playback or library data and respects `ROON_LIBRARY_CONTROLS=0`.

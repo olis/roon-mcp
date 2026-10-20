@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {BinaryWriter} from 'roon-library-controls/dist/src/wire.js';
 import assert from 'node:assert/strict';
 import {LibraryControlService} from './LibraryControlService.js';
 import type {RoonClient} from './RoonClient.js';
@@ -41,4 +42,33 @@ test('liking saves only the selected track; unliking keeps it in the library',as
 });
 test('changed recordings or another profile cannot be liked',async()=>{
  for(const mode of ['track','profile']){const f=fixture();if(mode==='track')f.set({trackId:'other'});else f.profile('Kamila');await assert.rejects(f.service.favorite('room',f.expected,true));assert.equal(f.adds(),0);assert.equal(f.favorites(),0);}
+});
+
+
+test('Listen Later confirms native state without saving streaming tracks to the library',async()=>{
+ const f=fixture();let saved=false,calls=0;
+ Object.assign(f.client,{
+  graph:{findByType:()=>[{fields:{'Library::SupportsListenLater':true}}]},
+  trackObject:()=>({oid:10n,fields:{'TrackLite::TrackId':1n,'TrackLite::IsListenLater':saved?new BinaryWriter().flexInt(1).sooid(Buffer.alloc(18)).flexInt(1).toBuffer():Buffer.from([0])}}),
+  remoting:{callMethod:async(_id:bigint,signature:string)=>{assert.match(signature,/SetListenLaterState/);calls++;saved=!saved;return{success:true};}}
+ });
+ assert.equal((await f.service.listenLater('room',f.expected,true)).listenLater,true);
+ assert.equal(f.adds(),0);assert.equal(calls,1);
+ await f.service.listenLater('room',f.expected,true);assert.equal(calls,1);
+ assert.equal((await f.service.listenLater('room',f.expected,false)).listenLater,false);
+ assert.equal(f.adds(),0);assert.equal(calls,2);
+});
+
+test('Listen Later rejects another profile, changed tracks, and unconfirmed writes',async()=>{
+ for(const mode of ['profile','track','confirmation']){
+  const f=fixture();let calls=0;
+  Object.assign(f.client,{
+   graph:{findByType:()=>[{fields:{'Library::SupportsListenLater':true}}]},
+   trackObject:()=>({oid:10n,fields:{'TrackLite::TrackId':1n,'TrackLite::IsListenLater':Buffer.from([0])}}),
+   remoting:{callMethod:async()=>{calls++;return{success:true};}}
+  });
+  if(mode==='profile')f.profile('Kamila');if(mode==='track')f.set({trackId:'changed'});
+  await assert.rejects(f.service.listenLater('room',f.expected,true));
+  assert.equal(calls,mode==='confirmation'?1:0);assert.equal(f.adds(),0);
+ }
 });

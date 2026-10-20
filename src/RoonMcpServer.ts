@@ -62,6 +62,12 @@ export class RoonMcpServer {
       inputSchema:{zoneId:z.string().min(1).max(150),trackId:z.string().min(1).max(150),title:z.string().min(1).max(1000),album:z.string().max(1000),favorite:z.boolean()},
       annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true},
     },handle(({zoneId,favorite,...expected})=>this.libraryControls.favorite(zoneId,expected,favorite)));
+    this.server.registerTool("set_current_listen_later",{
+      title:"Save or unsave the current track in Oliver's native Roon Listen Later",
+      description:"Changes Listen Later for only the exact current recording, without adding it to the library or changing playback. Requires verified track identity and confirms the result for Oliver.",
+      inputSchema:{zoneId:z.string().min(1).max(150),trackId:z.string().min(1).max(150),title:z.string().min(1).max(1000),album:z.string().max(1000),listenLater:z.boolean()},
+      annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true},
+    },handle(({zoneId,listenLater,...expected})=>this.libraryControls.listenLater(zoneId,expected,listenLater)));
     const images = new ImageService(this.roon);
     this.server.registerTool("get_image", {
       title: "Get Roon cover artwork",

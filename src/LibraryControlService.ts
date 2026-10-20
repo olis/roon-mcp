@@ -4,6 +4,8 @@ import { prepareRemoval } from "./LibraryRemoval.js";
 import { RoonClient } from "./RoonClient.js";
 import { TransportService } from "./TransportService.js";
 
+import {readListenLater,changeListenLater} from './ListenLaterControl.js';
+
 class CurrentTrackMismatchError extends Error {}
 
 /** Optional internal-protocol adapter, confined to the already paired Core. */
@@ -54,7 +56,7 @@ export class LibraryControlService {
   }
   private async readStatus(client:RoonLibraryClient,track:TrackInfo){
     const favorite=await resolvedFavorite(client,track);
-    const result={...status(track),favorite,canFavorite:favorite!==null&&(track.inLibrary||track.source==="streaming")};if(!track.inLibrary)return result;
+    const result={...status(track),...readListenLater(client,track),favorite,canFavorite:favorite!==null&&(track.inLibrary||track.source==="streaming")};if(!track.inLibrary)return result;
     const key=track.libraryTrackId??track.trackId??'';let capability=this.removability.get(key);
     if(!capability||Date.now()-capability.at>90000){
       try{await prepareRemoval(client,track);capability={at:Date.now(),canRemove:true};}
@@ -74,6 +76,19 @@ export class LibraryControlService {
         this.lastResync = Date.now(); this.close();
         const client=await this.connection();return this.readStatus(client,await this.current(client,zoneId));
       }
+    });
+  }
+  listenLater(zoneId:string,expected:{trackId:string;title:string;album:string},saved:boolean){
+    return this.exclusive(async()=>{
+      const client=await this.connection(),track=await this.current(client,zoneId);validateExpected(track,expected);
+      const before=readListenLater(client,track);
+      if(!before.canListenLater)throw Error("Listen Later is unavailable for this recording.");
+      if(before.listenLater===saved)return this.readStatus(client,track);
+      await changeListenLater(client,track,saved,async()=>{validateExpected(await this.current(client,zoneId),expected);});
+      this.close();const fresh=await this.connection(),confirmed=await this.current(fresh,zoneId);validateExpected(confirmed,expected);
+      const result=await this.readStatus(fresh,confirmed);
+      if(result.listenLater!==saved)throw Error("Roon did not confirm the Listen Later change for this song.");
+      return result;
     });
   }
   favorite(zoneId:string,expected:{trackId:string;title:string;album:string},favorite:boolean){
@@ -96,16 +111,16 @@ export class LibraryControlService {
   remove(zoneId: string, expected: { trackId: string; title: string; album: string }) {
     return this.exclusive(async () => {
       const client=await this.connection(),track=await this.current(client,zoneId);validateExpected(track,expected);
-      if(!track.inLibrary)return status(track);
+      if(!track.inLibrary)return this.readStatus(client,track);
       const remove=await prepareRemoval(client,track);
       // Previewing is read-only; recheck the exact song immediately before writing.
       const latest=await this.current(client,zoneId);validateExpected(latest,expected);
       if(latest.libraryTrackId!==track.libraryTrackId)throw new Error("Library track changed. Nothing was removed.");
       await remove();
       // A fresh read confirms membership; never retry the mutation.
-      this.close();const confirmed=await this.current(await this.connection(),zoneId);
+      this.close();const fresh=await this.connection(),confirmed=await this.current(fresh,zoneId);
       if(confirmed.inLibrary||!same(confirmed.title,expected.title)||!same(confirmed.album?.title,expected.album))throw new Error("Roon did not confirm removal of the expected song.");
-      return status(confirmed);
+      return this.readStatus(fresh,confirmed);
     });
   }
   add(zoneId: string, expected: { trackId: string; title: string; album: string }) {
@@ -113,14 +128,14 @@ export class LibraryControlService {
       const client = await this.connection();
       const track = await this.current(client, zoneId);
       validateExpected(track, expected);
-      if (track.inLibrary) return status(track);
+      if (track.inLibrary) return this.readStatus(client,track);
       if (track.source !== "streaming") throw new Error("This track cannot be added to the library.");
       // No await between checking the current object and the adapter capturing that object.
       const latest = client.trackForZone(zoneId); if (!latest) throw new Error("Nothing playing.");
       validateExpected(latest, expected);
       const added = await client.addToLibrary(zoneId, "track");
       if (!added.inLibrary || !same(added.title, expected.title) || !same(added.album?.title, expected.album)) throw new Error("Song changed while adding. Refresh to check its status.");
-      return status(added);
+      return this.readStatus(client,added);
     });
   }
 }

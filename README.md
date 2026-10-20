@@ -211,3 +211,8 @@ These tools use the unofficial [roon-library-controls](https://github.com/Vulkan
 
 
 `set_current_favorite({zoneId,trackId,title,album,favorite})` sets Oliver’s current-track favourite flag. `get_library_status` also returns a resolved `favorite` boolean (or null while unavailable) and `canFavorite`. The saved library object is resolved before reading or changing hearts. The exact recording and profile are rechecked after that asynchronous lookup and before sending `FavoriteOrBan`. Liking an unsaved streaming song adds that single track first; unliking leaves membership intact. A fresh read confirms the requested favourite state. These mutations are never automatically retried.
+
+
+### Native Listen Later
+
+`get_library_status` reports `listenLater` (boolean or null) and `canListenLater` for Oliver's current recording. `set_current_listen_later({zoneId,trackId,title,album,listenLater})` saves or unsaves only that exact song in Roon's native Listen Later, without library additions or playback changes. It rechecks the selected recording and Oliver profile, makes one internal-protocol write, and verifies the state using a fresh connection. Unsupported or unreadable state remains unavailable. This uses the same optional internal adapter as the existing library controls.

@@ -3,7 +3,8 @@ import type { BrowseHierarchy, BrowseItem } from "node-roon-api-browse";
 import { BrowseSessionManager } from "./BrowseSessionManager.js";
 import { RoonClient } from "./RoonClient.js";
 import { silentLogger, type RoonCallLogger } from "./logger.js";
-import { hierarchyForLocator } from "./locator.js";
+import { resolveStation } from "./RadioService.js";
+import { isRadioLocator, type RadioLocator, hierarchyForLocator } from "./locator.js";
 import { SearchNavigator, isSelectable, normalize, requireLocator } from "./SearchNavigator.js";
 import { findZone, fingerprintFor, ZoneSubscription } from "./ZoneSubscription.js";
 import { TrackExpansionService } from "./TrackExpansionService.js";
@@ -83,6 +84,9 @@ export class PlaybackService {
     const shuffle = input.shuffle ?? false;
     const addToQueue = input.addToQueue ?? false;
     const loc = requireLocator(input.itemKey);
+    if (isRadioLocator(loc) && (shuffle || addToQueue)) {
+      throw new RoonMcpError("NO_PLAY_ACTION", "Live radio supports immediate playback only; shuffle and queue append are unavailable.");
+    }
 
     // Resolve the target up front (explicit id, configured default, or
     // heuristics) so a bad/missing zone fails clearly, not as a confusing
@@ -110,6 +114,7 @@ export class PlaybackService {
     shuffle: boolean,
     addToQueue: boolean = false,
   ): Promise<PlaybackResult> {
+    if (isRadioLocator(loc)) return this.playStation(loc, zoneId);
     const hierarchy = hierarchyForLocator(loc);
 
     // 1. Re-navigate to a live key for the located item and open it.
@@ -200,6 +205,25 @@ export class PlaybackService {
       nowPlaying,
       message: `Started "${action.title}".${shuffleNote ?? ""}`,
     };
+  }
+
+  private async playStation(loc: RadioLocator, zoneId: string): Promise<PlaybackResult> {
+    const station = await resolveStation(this.browse, loc);
+    const sub = this.roon.getActiveSubscription();
+    const before = await this.captureFingerprint(sub, zoneId);
+    const result = await this.browse.browse({ hierarchy: "internet_radio",
+      item_key: station.item_key!, zone_or_output_id: zoneId });
+    if (result.action === "message" && result.is_error) {
+      // Do not retry a possibly submitted live stream start.
+      throw new RoonMcpError("BROWSE_FAILED", result.message ?? "Radio station start failed.");
+    }
+    // Successful station actions may reset Browse to Explore (action:list).
+    // Confirm by transport metadata rather than interpreting that navigation.
+    const nowPlaying = await this.readNowPlayingLine(sub, zoneId, before);
+    const confirmed = nowPlaying === station.title;
+    return { ok: confirmed, zoneId, queued: 0, skipped: [], nowPlaying,
+      message: confirmed ? `Started live radio station "${station.title}".`
+        : `Submitted start for "${station.title}"; target zone has not yet confirmed that station. Check now_playing before retrying.` };
   }
 
   /**
@@ -305,6 +329,7 @@ export class PlaybackService {
   ): Promise<{ ok: true } | { ok: false; reason: string }> {
     try {
       const loc = requireLocator(itemKey);
+      if (isRadioLocator(loc)) return { ok: false, reason: "Use play_now for live radio stations; they cannot be queued as tracks." };
       const hierarchy = hierarchyForLocator(loc);
       // A track locator (t set) resolves through the track list; an item
       // locator opens the candidate directly.

@@ -11,7 +11,7 @@ function fixture(missingSearch = false) {
   let attributedProfile: string | undefined;
   const calls: BrowseOptions[] = [];
   const lists = () => {
-    if (level === "Explore") return ["Settings", "Library", "Genres"];
+    if (level === "Explore") return ["Settings", "Library", "Genres", "My Live Radio"];
     if (level === "Settings") return ["Profile"];
     if (level === "Profile") return ["Oliver", "Other"];
     if (level === "Library") return missingSearch ? [] : ["Search"];
@@ -75,4 +75,15 @@ test("missing shared Search entry fails before any queue action", async () => {
     await f.manager.browse({ hierarchy: "search", item_key: "Play Now", zone_or_output_id: "room" });
   }), /Missing or ambiguous Search/);
   assert.equal(f.attributedProfile(), undefined);
+});
+
+
+test("saved radio navigation retains Oliver in the shared hierarchy", async () => {
+  const f = fixture();
+  await f.manager.runExclusive(async () => {
+    await f.manager.browse({hierarchy:"internet_radio",pop_all:true});
+    assert.equal(f.calls.at(-1)?.item_key,"My Live Radio");
+    await f.manager.browse({hierarchy:"internet_radio",item_key:"Play Now",zone_or_output_id:"room"});
+  });
+  assert.equal(f.attributedProfile(),"Oliver");
 });

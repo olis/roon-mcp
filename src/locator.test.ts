@@ -1,3 +1,4 @@
+import { isRadioLocator } from "./locator.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -13,7 +14,7 @@ import {
 test("a search locator round-trips through encode/decode", () => {
   const token = encodeLocator({ q: "Tycho", g: 1, i: 2 });
   const loc = decodeLocator(token);
-  assert.ok(loc && !isGenreLocator(loc));
+  assert.ok(loc && !isGenreLocator(loc) && !isRadioLocator(loc));
   assert.deepEqual(loc, { q: "Tycho", g: 1, i: 2 });
   assert.equal(hierarchyForLocator(loc), "search");
 });
@@ -38,7 +39,7 @@ test("a genre track locator carries the (album, track) coordinates", () => {
 
 test("withTrackIndex extends a search locator with a track index", () => {
   const search = decodeLocator(encodeLocator({ q: "x", g: 0, i: 0 }))!;
-  assert.ok(!isGenreLocator(search));
+  assert.ok(!isGenreLocator(search) && !isRadioLocator(search));
   const searchT = withTrackIndex(search, 3);
   assert.equal(searchT.t, 3);
 });
@@ -46,4 +47,14 @@ test("withTrackIndex extends a search locator with a track index", () => {
 test("a non-locator token decodes to null", () => {
   assert.equal(decodeLocator("341:0"), null);
   assert.equal(decodeLocator("rl1:not-base64-json"), null);
+});
+
+
+test("station identity round-trips and malformed station locators are rejected", () => {
+  const loc = {ra:"hr1",subtitle:"Germany"};
+  assert.deepEqual(decodeLocator(encodeLocator(loc)),loc);
+  assert.equal(hierarchyForLocator(loc),"internet_radio");
+  for(const malformed of [{ra:"",subtitle:""},{ra:"hr1"},{ra:"hr1",subtitle:"",t:0},null]) {
+    assert.equal(decodeLocator("rl1:"+Buffer.from(JSON.stringify(malformed)).toString("base64url")),null);
+  }
 });

@@ -19,6 +19,7 @@ export class ProfiledBrowseSessionManager extends BrowseSessionManager {
       settings: ["Settings"],
       search: ["Library", "Search"],
       genres: ["Genres"],
+      internet_radio: ["My Live Radio"],
     };
     const path = paths[options.hierarchy];
     if (!path) {

@@ -12,6 +12,8 @@ import {
   type SearchMusicOutput,
 } from "./types.js";
 
+import { RadioService } from "./RadioService.js";
+
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 const GROUP_SCAN_COUNT = 50;
@@ -57,6 +59,8 @@ export class SearchService {
   async searchMusic(input: SearchMusicInput): Promise<SearchMusicOutput> {
     const limit = Math.min(Math.max(input.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
 
+    if (input.type === "radio") return new RadioService(this.browse).search(input.query, limit);
+
     // Genres don't appear in Roon's flat search; resolve them via the dedicated
     // `genres` hierarchy instead (GenreService), and never silently broaden to
     // artists/albums — that hid the failure before.
@@ -86,6 +90,10 @@ export class SearchService {
     }
 
     return library;
+  }
+
+  async listRadioStations() {
+    return new RadioService(this.browse).listStations();
   }
 
   private async searchGenres(

@@ -1,3 +1,4 @@
+import { isRadioLocator } from "./locator.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -132,7 +133,7 @@ test("an album expands directly into its track list", async () => {
   assert.equal(out.tracks.length, 2);
   // Each track is keyed by a locator extending the source with its index.
   const first = decodeLocator(out.tracks[0]?.itemKey ?? "");
-  assert.ok(first && !isGenreLocator(first));
+  assert.ok(first && !isGenreLocator(first) && !isRadioLocator(first));
   assert.equal(first.q, "album1");
   assert.equal(first.t, 0);
   assert.equal(out.tracks[0]?.title, "Awake");

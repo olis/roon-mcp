@@ -220,3 +220,26 @@ These tools use the unofficial [roon-library-controls](https://github.com/Vulkan
 ### Original release metadata
 
 `get_release_date({zoneId})` reads the exact current track’s album metadata through the optional internal-protocol adapter. It returns `originalAlbumReleaseDate`, `albumReleaseDate`, `isCompilation`, `dateScope: "album"` and `source: "roon-internal"`, with the current track identity. Dates preserve unknown month/day as null. `originalReleaseYear` is null for compilations, various-artist albums or a missing original date; album dates must not be presented as original song dates for compilations. This read-only tool does not change playback or library data and respects `ROON_LIBRARY_CONTROLS=0`.
+
+
+### Saved live radio stations
+
+`list_radio_stations({})` lists all stations saved in **My Live Radio** for
+Oliver. `search_music({query: "hr 1", type: "radio"})` searches those saved
+stations only; it never substitutes tracks or albums. Multiple matches remain
+separate candidates, with station/location subtitles for disambiguation.
+
+Start a station with `play_now({itemKey, zoneId})` using its returned key and the
+chosen zone. The service reopens My Live Radio and resolves the exact station
+name and subtitle before executing its direct play action. Reordered stations
+do not change the selection; missing or indistinguishable duplicates fail.
+Live streams cannot be appended, shuffled, expanded into tracks, or included
+in `enqueue_and_play`. Station playback reports `queued: 0` because it starts
+a stream rather than adding tracks. Listing and searching do not start streams
+or change saved stations. Public directory search and adding stations are not
+supported. `set_auto_radio` continues to control similar-track continuation,
+which is separate from live radio.
+
+Navigation uses the existing serialized shared Browse session and Oliver
+profile guard. The current Core exposes saved stations under **My Live Radio**
+as direct actions. A missing root or incomplete catalogue returns an error.

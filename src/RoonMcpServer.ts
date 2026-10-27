@@ -107,6 +107,12 @@ export class RoonMcpServer {
       }),
     );
 
+    this.server.registerTool("list_radio_stations", {
+      title: "List saved Roon live radio stations",
+      description: "List all stations saved in My Live Radio for Oliver, with station itemKeys for play_now. Does not start playback, add stations or search the public directory. Live radio differs from Roon Radio queue continuation.",
+      inputSchema: {}, annotations: { readOnlyHint: true, destructiveHint: false },
+    }, handle(() => this.search.listRadioStations()));
+
     this.server.registerTool(
       "search_music",
       {
@@ -117,7 +123,7 @@ export class RoonMcpServer {
           "album In Rainbows\", \"play some Psytrance\", \"anything by Ryuichi " +
           "Sakamoto?\"). Resolves a free-text query into ranked Roon browse " +
           "candidates. Optionally restrict to one item type (artist, album, track, " +
-          "genre, playlist, radio); for non-genre types, an empty typed search " +
+          "genre, playlist, radio). type:radio searches only saved My Live Radio stations, without music fallback. For other non-genre types, an empty typed search " +
           "broadens to all categories. type:\"genre\" is special — genres don't " +
           "appear in Roon's flat search, so the server walks the dedicated Genres " +
           "tree and returns the nearest-match genre nodes (with parent path in the " +
@@ -210,7 +216,7 @@ export class RoonMcpServer {
         title: "Play or queue an item in a Roon zone",
         description:
           "Use this when the user wants one specific thing playing right now — " +
-          "an album, artist, playlist, genre mix, or single track (e.g. \"play " +
+          "a saved live radio station, album, artist, playlist, genre mix, or single track (e.g. \"play " +
           "Tycho\", \"put on In Rainbows\", \"start some Psytrance in the office\", " +
           "\"play that track\"). By default, immediately starts the item and replaces " +
           "whatever was queued. Pass addToQueue: true to append it to the existing " +
@@ -221,7 +227,7 @@ export class RoonMcpServer {
           "zone / the currently-playing zone; if it still can't decide it returns " +
           "ZONE_AMBIGUOUS so the agent can ask the user or call list_zones. " +
           "Optionally shuffle (only applies when replacing, not when queuing). " +
-          "Returns a PlaybackResult.",
+          "Live radio uses immediate playback only; addToQueue and shuffle are unavailable for stations. Returns a PlaybackResult.",
         inputSchema: {
           zoneId: z
             .string()

@@ -1,3 +1,4 @@
+import { isRadioLocator } from "./locator.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -150,7 +151,7 @@ test("searchMusic returns ranked candidates keyed by re-navigable locators", asy
   // The itemKey is a locator carrying the query + group/item indices, not the
   // raw (ephemeral) Roon key.
   const decoded = decodeLocator(out.candidates[0]?.itemKey ?? "");
-  assert.ok(decoded && !isGenreLocator(decoded));
+  assert.ok(decoded && !isGenreLocator(decoded) && !isRadioLocator(decoded));
   assert.equal(decoded.q, "Tycho");
   assert.equal(typeof decoded.g, "number");
   assert.equal(decoded.i, 0);
@@ -227,7 +228,7 @@ test("includeStreaming samples a track mix across genre-relevant albums", async 
   const albumIndices = new Set(
     out.candidates.map((c) => {
       const loc = decodeLocator(c.itemKey);
-      assert.ok(loc && !isGenreLocator(loc) && typeof loc.t === "number");
+      assert.ok(loc && !isGenreLocator(loc) && !isRadioLocator(loc) && typeof loc.t === "number");
       return loc.i;
     }),
   );

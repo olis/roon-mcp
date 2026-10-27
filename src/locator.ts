@@ -53,7 +53,18 @@ export interface GenreLocator {
   t?: number;
 }
 
-export type Locator = SearchLocator | GenreLocator;
+/** Saved station identity; never an index into a list that can reorder. */
+export interface RadioLocator {
+  ra: string;
+  subtitle: string;
+  t?: never;
+}
+
+export type Locator = SearchLocator | GenreLocator | RadioLocator;
+
+export function isRadioLocator(loc: Locator): loc is RadioLocator {
+  return typeof (loc as RadioLocator).ra === "string";
+}
 
 /** True for a genre locator (re-navigated via the `genres` hierarchy). */
 export function isGenreLocator(loc: Locator): loc is GenreLocator {
@@ -62,7 +73,7 @@ export function isGenreLocator(loc: Locator): loc is GenreLocator {
 
 /** Which browse hierarchy a locator is re-navigated in. */
 export function hierarchyForLocator(loc: Locator): BrowseHierarchy {
-  return isGenreLocator(loc) ? "genres" : "search";
+  return isRadioLocator(loc) ? "internet_radio" : isGenreLocator(loc) ? "genres" : "search";
 }
 
 /**
@@ -95,7 +106,13 @@ export function decodeLocator(token: string): Locator | null {
   if (!token.startsWith(PREFIX)) return null;
   try {
     const json = Buffer.from(token.slice(PREFIX.length), "base64url").toString("utf8");
-    const obj = JSON.parse(json) as Partial<SearchLocator & GenreLocator>;
+    const obj = JSON.parse(json) as Partial<SearchLocator & GenreLocator & RadioLocator>;
+    if (!obj || typeof obj !== "object") return null;
+    if ("ra" in obj) {
+      if (typeof obj.ra !== "string" || !obj.ra.trim() || typeof obj.subtitle !== "string" ||
+          obj.t !== undefined || obj.ge !== undefined || obj.q !== undefined) return null;
+      return { ra: obj.ra, subtitle: obj.subtitle };
+    }
 
     // Genre locator: a path of node titles.
     if (Array.isArray(obj.ge) && obj.ge.every((s) => typeof s === "string")) {

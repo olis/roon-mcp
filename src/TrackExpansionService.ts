@@ -6,6 +6,7 @@ import {
   encodeLocator,
   hierarchyForLocator,
   isGenreLocator,
+  isRadioLocator,
   withTrackIndex,
   type GenreLocator,
   type Locator,
@@ -127,6 +128,7 @@ export class TrackExpansionService {
   async getTracksFor(input: GetTracksForInput): Promise<GetTracksForOutput> {
     const limit = Math.min(Math.max(input.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
     const loc = requireLocator(input.itemKey);
+    if (isRadioLocator(loc)) return notExpandable(input.itemKey, "Live radio stations do not expand into tracks.");
 
     return this.browse.runExclusive(async () => {
       try {

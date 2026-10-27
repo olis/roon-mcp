@@ -4,6 +4,7 @@ import { BrowseSessionManager } from "./BrowseSessionManager.js";
 import {
   decodeLocator,
   isGenreLocator,
+  isRadioLocator,
   type GenreLocator,
   type Locator,
   type SearchLocator,
@@ -57,6 +58,7 @@ export class SearchNavigator {
    * Compose inside `runExclusive` — this issues a multi-step browse sequence.
    */
   async openItem(loc: Locator): Promise<BrowseResultBody> {
+    if (isRadioLocator(loc)) throw new RoonMcpError("NO_PLAY_ACTION", "Use play_now to start a saved radio station.");
     return isGenreLocator(loc) ? this.openGenrePath(loc) : this.openSearchItem(loc);
   }
 

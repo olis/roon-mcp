@@ -853,3 +853,23 @@ test("ungroup accepts a single zone and detaches its outputs", async () => {
   assert.deepEqual(ungroupCalls, [["o:z2"]]);
   assert.equal(out.action, "ungroup");
 });
+
+
+test("now playing refreshes from the Core when a subscription is stuck at a track ending", async () => {
+  const stale = zone({ zone_id: "z1", state: "playing", now_playing: { three_line: { line1: "Old track" }, length: 312, seek_position: 311 } });
+  let current = zone({ zone_id: "z1", state: "playing", now_playing: { three_line: { line1: "Next track" }, length: 240, seek_position: 10 } });
+  let reads = 0;
+  const transport = {
+    subscribe_zones: (cb: (response: string, body: unknown) => void) => cb("Subscribed", { zones: [stale] }),
+    get_zones: (cb: (error: string | false, body: GetZonesBody) => void) => { reads++; cb(false, { zones: [current] }); },
+  } as unknown as RoonApiTransport;
+  const sub = new ZoneSubscription(transport, "core-1"); sub.start();
+  const roon = { waitForCore: async () => undefined, getTransport: () => transport, getActiveSubscription: () => sub } as unknown as RoonClient;
+  const svc = new TransportService(roon, new ZoneService(roon));
+  let info = await svc.getNowPlaying("z1");
+  assert.equal(info.title, "Next track"); assert.equal(info.seekPositionSec, 10);
+  current = zone({ ...current, state: "paused", now_playing: { ...current.now_playing, seek_position: 25 } });
+  info = await svc.getNowPlaying("z1");
+  assert.equal(info.state, "paused"); assert.equal(info.seekPositionSec, 25);
+  assert.equal(reads, 2);
+});

@@ -148,19 +148,19 @@ export class ZoneService {
   }
 
   /** The raw Roon zone for a zone or output id, from the current snapshot. */
-  async findRawZone(idOrOutput: string): Promise<RoonApiZone | undefined> {
-    return findZone(await this.getZonesBody(), idOrOutput);
+  async findRawZone(idOrOutput: string, fresh = false): Promise<RoonApiZone | undefined> {
+    return findZone(await this.getZonesBody(fresh), idOrOutput);
   }
 
   /**
    * The current zone snapshot: the subscription cache when warm, else a
    * logged one-shot `get_zones`.
    */
-  async getZonesBody(): Promise<GetZonesBody> {
+  async getZonesBody(fresh = false): Promise<GetZonesBody> {
     await this.roon.waitForCore();
     const transport = this.roon.getTransport();
     const sub: ZoneSubscription | undefined = this.roon.getActiveSubscription();
-    if (sub) {
+    if (sub && !fresh) {
       // Prefer the cache kept current by Roon's `subscribe_zones` events;
       // fall back to a one-shot `get_zones` only on cold start (cache empty).
       return sub.getSnapshot(() => this.fallbackGetZones(transport));

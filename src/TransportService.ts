@@ -141,7 +141,8 @@ export class TransportService {
    * layer never has to serialize an `undefined` payload (issue #9).
    */
   async getNowPlaying(zoneId?: string): Promise<NowPlayingInfo> {
-    const { raw } = await this.resolveRaw(zoneId);
+    // Live status must not remain stuck on a warm but stale subscription.
+    const { raw } = await this.resolveRaw(zoneId, true);
     return mapNowPlaying(raw);
   }
 
@@ -498,9 +499,9 @@ export class TransportService {
    * vanished between the two reads surfaces as `ZONE_NOT_FOUND` rather than
    * an `undefined` payload (issue #9).
    */
-  private async resolveRaw(zoneId?: string): Promise<{ targetId: string; raw: RoonApiZone }> {
+  private async resolveRaw(zoneId?: string, fresh = false): Promise<{ targetId: string; raw: RoonApiZone }> {
     const { targetId } = await this.zones.resolveTarget(zoneId);
-    const raw = await this.zones.findRawZone(targetId);
+    const raw = await this.zones.findRawZone(targetId, fresh);
     if (!raw) {
       throw new RoonMcpError("ZONE_NOT_FOUND", `Zone "${targetId}" is no longer available.`);
     }

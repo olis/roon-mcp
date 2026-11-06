@@ -60,6 +60,7 @@ export class RadioService {
   private candidate(item: BrowseItem, score: number): MusicCandidate {
     return { itemKey: encodeLocator({ ra: item.title, subtitle: item.subtitle ?? "" }),
       title: item.title, subtitle: item.subtitle, type: "radio", score, available: true,
-      sourceGroup: "My Live Radio" };
+      sourceGroup: "My Live Radio",
+      ...(item.image_key ? { imageKey: item.image_key } : {}) };
   }
 }

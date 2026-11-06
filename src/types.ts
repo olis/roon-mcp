@@ -39,6 +39,7 @@ export interface MusicCandidate {
   score: number;
   available: boolean;
   sourceGroup?: string;
+  imageKey?: string;
 }
 
 export interface SearchMusicOutput {

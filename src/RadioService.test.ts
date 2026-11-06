@@ -122,3 +122,10 @@ test("unconfirmed radio start reports uncertainty and is never retried", async (
   assert.equal(result.ok,false); assert.match(result.message!,/not yet confirmed/);
   assert.equal(f.calls.filter(c=>c.item_key).length,1);
 });
+
+test("saved radio and search expose the station logo image key", async () => {
+ const f=fixture([{...station("FM"),image_key:"station-logo"}]);
+ assert.equal((await f.radio.listStations()).stations[0]?.imageKey,"station-logo");
+ assert.equal((await f.radio.search("FM",10)).candidates[0]?.imageKey,"station-logo");
+ assert.equal((await fixture([station("FM")]).radio.listStations()).stations[0]?.imageKey,undefined);
+});

@@ -82,6 +82,10 @@ export interface PlayNowInput {
   shuffle?: boolean;
   /** When true, append to the existing queue instead of replacing it. Default: false (replace). */
   addToQueue?: boolean;
+  /** Insert immediately after the current track without interrupting playback. */
+  addNext?: boolean;
+  /** Replace upcoming content while preserving the current song (MCP orchestration). */
+  replaceUpcoming?: boolean;
 }
 
 export interface EnqueueAndPlayInput {

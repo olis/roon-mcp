@@ -43,6 +43,7 @@ const PLAY_LABELS = [
 const SHUFFLE_LABELS = ["shuffle"];
 // For curated, ordered queues we append to the end ("Add to Queue"/"Queue")
 // rather than "Add Next", which would reverse the order on repeated calls.
+const NEXT_LABELS = ["add next", "play next"];
 const QUEUE_LABELS = ["add to queue", "queue", "add next"];
 
 /** An action candidate has a key and is not a header/list/action-list node. */
@@ -82,7 +83,10 @@ export class PlaybackService {
   /** Start a single search candidate playing immediately in the target zone. */
   async playNow(input: PlayNowInput): Promise<PlaybackResult> {
     const shuffle = input.shuffle ?? false;
-    const addToQueue = input.addToQueue ?? false;
+    if (input.addNext && input.addToQueue) {
+      throw new RoonMcpError("NO_PLAY_ACTION", "Choose addNext or addToQueue, not both.");
+    }
+    const addToQueue = input.addToQueue === true || input.addNext === true;
     const loc = requireLocator(input.itemKey);
     if (isRadioLocator(loc) && (shuffle || addToQueue)) {
       throw new RoonMcpError("NO_PLAY_ACTION", "Live radio supports immediate playback only; shuffle and queue append are unavailable.");
@@ -95,13 +99,13 @@ export class PlaybackService {
 
     return this.browse.runExclusive(async () => {
       try {
-        return await this.performPlayNow(loc, targetId, shuffle, addToQueue);
+        return await this.performPlayNow(loc, targetId, shuffle, addToQueue, input.addNext);
       } catch (err) {
         // Per plan: if action invocation fails, reopen the item and retry once.
         // Re-navigating gives fresh live keys, so the retry is meaningful. (A
         // stale locator surfaces as INVALID_ITEM_KEY and is not retried.)
-        if (err instanceof RoonMcpError && err.code === "ACTION_FAILED") {
-          return this.performPlayNow(loc, targetId, shuffle, addToQueue);
+        if (!input.addNext && err instanceof RoonMcpError && err.code === "ACTION_FAILED") {
+          return this.performPlayNow(loc, targetId, shuffle, addToQueue, input.addNext);
         }
         throw err;
       }
@@ -113,6 +117,7 @@ export class PlaybackService {
     zoneId: string,
     shuffle: boolean,
     addToQueue: boolean = false,
+    addNext: boolean = false,
   ): Promise<PlaybackResult> {
     if (isRadioLocator(loc)) return this.playStation(loc, zoneId);
     const hierarchy = hierarchyForLocator(loc);
@@ -129,7 +134,7 @@ export class PlaybackService {
     // 2. Discover the appropriate action among the item's options.
     //    When queuing, use "Add to Queue" labels; otherwise look for "Play Now".
     const labels = addToQueue
-      ? QUEUE_LABELS
+      ? (addNext ? NEXT_LABELS : QUEUE_LABELS)
       : shuffle
         ? [...SHUFFLE_LABELS, ...PLAY_LABELS]
         : PLAY_LABELS;
@@ -144,6 +149,9 @@ export class PlaybackService {
     }
 
     if (addToQueue) {
+      if (addNext && !(await this.trySetShuffle(zoneId, false))) {
+        throw new RoonMcpError("ACTION_FAILED", "Could not disable shuffle for the ordered station mix. Nothing was inserted.");
+      }
       // Adding to queue does not change what's currently playing, so no
       // fingerprint tracking is needed.
       const result = await this.browse.browse({

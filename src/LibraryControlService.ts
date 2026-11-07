@@ -1,3 +1,5 @@
+import {replaceUpcoming} from './QueueReplacement.js';
+import type {PlaybackResult} from './types.js';
 import {releaseMetadata} from './ReleaseDate.js';
 import type {ObjectGraph,RoonObject} from 'roon-library-controls/dist/src/graph.js';
 import { RoonLibraryClient, type TrackInfo } from "roon-library-controls";
@@ -117,6 +119,13 @@ export class LibraryControlService {
       this.close();const fresh=await this.connection(),confirmed=await this.current(fresh,zoneId),result=await this.readStatus(fresh,confirmed);
       if(!same(confirmed.title,expected.title)||!same(confirmed.album?.title,expected.album)||result.favorite!==favorite)throw Error("Roon did not confirm the favourite change for this song.");
       return result;
+    });
+  }
+  replaceUpcoming(zoneId: string, insertNext: () => Promise<PlaybackResult>) {
+    return this.exclusive(async () => {
+      const client = await this.connection();
+      this.checkProfile(client);
+      return replaceUpcoming(client, zoneId, insertNext);
     });
   }
   remove(zoneId: string, expected: { trackId: string; title: string; album: string }) {

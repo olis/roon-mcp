@@ -563,3 +563,31 @@ test("play_now still reports the previous track when no Changed event arrives", 
   const out = await svc.playNow({ zoneId: "z1", itemKey: loc("album") });
   assert.equal(out.nowPlaying, "Some Track");
 });
+
+
+test("addNext inserts without invoking Play Now or the append action", async () => {
+  const { svc, browse, transport } = build(
+    { track: [action("Play Now", "play"), action("Queue", "append"), action("Add Next", "next")] },
+    ["play", "append", "next"],
+  );
+  const out = await svc.playNow({zoneId: "z1", itemKey: loc("track"), addNext: true});
+  assert.equal(out.ok, true);
+  assert.deepEqual(browse.invocations, [{itemKey: "next", zone: "z1"}]);
+  assert.deepEqual(transport.shuffleCalls, [{zone:"z1",shuffle:false}]);
+});
+
+test("addNext never falls back to immediate playback or queue append", async () => {
+  const { svc, browse } = build(
+    { track: [action("Play Now", "play"), action("Queue", "append")] }, ["play", "append"],
+  );
+  await assert.rejects(svc.playNow({zoneId: "z1", itemKey: loc("track"), addNext: true}), /No queue action/);
+  assert.deepEqual(browse.invocations, []);
+  await assert.rejects(svc.playNow({zoneId: "z1", itemKey: loc("track"), addNext: true, addToQueue: true}), /not both/);
+});
+
+
+test("uncertain Add Next is not retried", async () => {
+  const {svc,browse} = build({track:[action("Add Next","next")]},["next"],{playOpts:{failActionTimes:1}});
+  await assert.rejects(svc.playNow({zoneId:"z1",itemKey:loc("track"),addNext:true}), /ActionFailed/);
+  assert.deepEqual(browse.invocations, []);
+});

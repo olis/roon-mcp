@@ -227,7 +227,7 @@ export class RoonMcpServer {
           "zone / the currently-playing zone; if it still can't decide it returns " +
           "ZONE_AMBIGUOUS so the agent can ask the user or call list_zones. " +
           "Optionally shuffle (only applies when replacing, not when queuing). " +
-          "Live radio uses immediate playback only; addToQueue and shuffle are unavailable for stations. Returns a PlaybackResult.",
+          "Live radio uses immediate playback only; addNext, addToQueue and shuffle are unavailable for stations. Returns a PlaybackResult.",
         inputSchema: {
           zoneId: z
             .string()
@@ -249,6 +249,17 @@ export class RoonMcpServer {
             .boolean()
             .optional()
             .describe("Shuffle the selection when starting playback (ignored when addToQueue is true)."),
+          replaceUpcoming: z.boolean().optional().describe(
+            "Start a fresh mix after the current song: insert this track next and remove " +
+            "all old upcoming entries, preserving the playing or paused song. " +
+            "If stopped, start immediately. Append the remaining mix with addToQueue. " +
+            "Mutually exclusive with addNext and addToQueue.",
+          ),
+          addNext: z.boolean().optional().describe(
+            "Insert immediately after the current track without interrupting it. " +
+            "Keeps the old upcoming queue behind the insertion. For an ordered mix, " +
+            "insert tracks in reverse order. Mutually exclusive with addToQueue.",
+          ),
           addToQueue: z
             .boolean()
             .optional()
@@ -258,7 +269,16 @@ export class RoonMcpServer {
             ),
         },
       },
-      handle((args) => this.playback.playNow(args)),
+      handle(async (args) => {
+        if (!args.replaceUpcoming) return this.playback.playNow(args);
+        if (args.addNext || args.addToQueue) throw new Error("replaceUpcoming cannot be combined with addNext or addToQueue.");
+        const {targetId} = await this.zones.resolveTarget(args.zoneId);
+        const state = await this.transport.getNowPlaying(targetId);
+        if (state.state === "stopped") return this.playback.playNow({...args,zoneId:targetId});
+        if (!["playing", "paused"].includes(state.state)) throw new Error("Playback is changing. Try the station again.");
+        return this.libraryControls.replaceUpcoming(targetId,
+          () => this.playback.playNow({...args, zoneId:targetId, addNext:true}));
+      }),
     );
 
     this.server.registerTool(

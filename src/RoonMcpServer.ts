@@ -1,3 +1,4 @@
+import { handoverMix } from "./MixHandover.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { isAbsolute } from "node:path";
@@ -252,7 +253,7 @@ export class RoonMcpServer {
           replaceUpcoming: z.boolean().optional().describe(
             "Start a fresh mix after the current song: insert this track next and remove " +
             "all old upcoming entries, preserving the playing or paused song. " +
-            "If stopped, start immediately. Append the remaining mix with addToQueue. " +
+            "If stopped or playing live radio, start immediately. Append the remaining mix with addToQueue. " +
             "Mutually exclusive with addNext and addToQueue.",
           ),
           addNext: z.boolean().optional().describe(
@@ -274,10 +275,9 @@ export class RoonMcpServer {
         if (args.addNext || args.addToQueue) throw new Error("replaceUpcoming cannot be combined with addNext or addToQueue.");
         const {targetId} = await this.zones.resolveTarget(args.zoneId);
         const state = await this.transport.getNowPlaying(targetId);
-        if (state.state === "stopped") return this.playback.playNow({...args,zoneId:targetId});
-        if (!["playing", "paused"].includes(state.state)) throw new Error("Playback is changing. Try the station again.");
-        return this.libraryControls.replaceUpcoming(targetId,
-          () => this.playback.playNow({...args, zoneId:targetId, addNext:true}));
+        return handoverMix({...args, zoneId:targetId}, state,
+          input => this.playback.playNow(input),
+          insert => this.libraryControls.replaceUpcoming(targetId, insert));
       }),
     );
 

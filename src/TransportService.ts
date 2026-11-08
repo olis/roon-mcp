@@ -666,6 +666,9 @@ function mapNowPlaying(raw: RoonApiZone): NowPlayingInfo {
     ...trackLines(np),
     imageKey: np?.image_key,
     lengthSec: np?.length,
+    // Missing duration alone also occurs while track metadata is loading.
+    ...(np && raw.is_seek_allowed === false && (np.length == null || np.length === 0)
+      ? { isLiveStream: true } : {}),
     seekPositionSec: np?.seek_position,
     volumePercent: zoneVolumePercent(raw),
     isMuted: (raw.outputs ?? []).some((o) => o.volume?.is_muted === true),

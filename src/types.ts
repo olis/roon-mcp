@@ -157,6 +157,8 @@ export interface NowPlayingInfo {
   album?: string;
   imageKey?: string;
   lengthSec?: number;
+  /** Unseekable media without a finite duration, such as live radio. */
+  isLiveStream?: boolean;
   seekPositionSec?: number;
   /**
    * Current volume of the zone's first numeric-range output as a 0–100

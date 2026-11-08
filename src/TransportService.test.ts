@@ -873,3 +873,18 @@ test("now playing refreshes from the Core when a subscription is stuck at a trac
   assert.equal(info.state, "paused"); assert.equal(info.seekPositionSec, 25);
   assert.equal(reads, 2);
 });
+
+
+test("live streams require both absent duration and explicitly disabled seeking", async () => {
+  for (const [length, seek, live] of [
+    [undefined, false, true], [0, false, true],
+    [240, false, false], [240, true, false],
+    [undefined, undefined, false], [undefined, true, false],
+  ] as const) {
+    const {svc} = serviceWith([zone({zone_id: "z1", state: "playing", is_seek_allowed: seek,
+      now_playing: {one_line: {line1: "Current media"}, length}})]);
+    assert.equal((await svc.getNowPlaying()).isLiveStream === true, live);
+  }
+  const {svc} = serviceWith([zone({zone_id: "z1", state: "playing", is_seek_allowed: false})]);
+  assert.notEqual((await svc.getNowPlaying()).isLiveStream, true);
+});
